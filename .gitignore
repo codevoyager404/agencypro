@@ -13,12 +13,12 @@ web/.npm
 
 # Python
 backend/.venv
-backend/__pycache__
 backend/.pytest_cache
 backend/.mypy_cache
 backend/.ruff_cache
 backend/.coverage
-backend/*.pyc
+__pycache__/
+*.py[cod]
 
 # Env
 *.env
