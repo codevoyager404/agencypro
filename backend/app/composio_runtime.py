@@ -16,11 +16,11 @@ class ComposioRuntime:
         self._openai_api_key = os.getenv("OPENAI_API_KEY", "")
         self._composio_api_key = os.getenv("COMPOSIO_API_KEY", "")
         self._model = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
-        self._toolkit_filter = [
-            slug.strip()
-            for slug in os.getenv("TOOLKIT_FILTER", "github").split(",")
-            if slug.strip()
-        ]
+        filter_env = os.getenv("TOOLKIT_FILTER", "github").strip()
+        if filter_env.upper() == "ALL":
+            self._toolkit_filter = None
+        else:
+            self._toolkit_filter = [slug.strip() for slug in filter_env.split(",") if slug.strip()]
         self._workbench_offload_threshold = int(
             os.getenv("WORKBENCH_AUTO_OFFLOAD_THRESHOLD", "300")
         )

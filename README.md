@@ -4,7 +4,7 @@ This repo implements the same pattern shown in your screenshot:
 
 - Left panel: chat conversation
 - Right panel: live tool logs
-- Dynamic auth card: "Connect GitHub"
+- Dynamic auth card: "Connect {App}"
 - Backend loop: LangGraph orchestrator with Composio meta-tools and workbench support
 
 ## Architecture
@@ -19,7 +19,7 @@ This repo implements the same pattern shown in your screenshot:
   4. repeat until final answer
 - Composio session config:
   - managed connections enabled
-  - toolkit filter defaults to `github`
+  - toolkit filter defaults to `ALL` (search across all apps)
   - workbench auto-offload threshold enabled
 
 ### Frontend (`/web`)
@@ -62,7 +62,7 @@ Backend (`/backend/.env`):
 - `OPENAI_API_KEY`
 - `COMPOSIO_API_KEY`
 - `OPENAI_MODEL` (default: `gpt-4.1-mini`)
-- `TOOLKIT_FILTER` (default: `github`)
+- `TOOLKIT_FILTER` (default: `ALL`; use comma-separated slugs to restrict)
 - `WORKBENCH_AUTO_OFFLOAD_THRESHOLD` (default: `300`)
 
 Frontend (`/web/.env.local`):

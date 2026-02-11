@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { Loader2, Send } from "lucide-react";
@@ -9,8 +9,11 @@ import { ChatMessage } from "@/components/chat-message";
 import { LogsPanel } from "@/components/logs-panel";
 import { collectLogs, type AgentUIMessage } from "@/lib/types";
 
+const AUTH_SUCCESS_EVENT = "COMPOSIO_AUTH_SUCCESS";
+
 export default function AgentPage() {
   const [input, setInput] = useState("");
+  const lastAuthSignalAtRef = useRef(0);
 
   const { messages, sendMessage, status, stop, error } = useChat<AgentUIMessage>({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
@@ -18,6 +21,24 @@ export default function AgentPage() {
 
   const logs = useMemo(() => collectLogs(messages), [messages]);
   const isRunning = status === "submitted" || status === "streaming";
+
+  useEffect(() => {
+    const handleAuthCallback = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data !== AUTH_SUCCESS_EVENT) return;
+      if (isRunning) return;
+      const now = Date.now();
+      if (now - lastAuthSignalAtRef.current < 1500) return;
+      lastAuthSignalAtRef.current = now;
+
+      void sendMessage({
+        text: "Connection completed successfully. Continue the previous task.",
+      });
+    };
+
+    window.addEventListener("message", handleAuthCallback);
+    return () => window.removeEventListener("message", handleAuthCallback);
+  }, [isRunning, sendMessage]);
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
