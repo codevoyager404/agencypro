@@ -20,7 +20,16 @@ export type AgentAuthPrompt = {
   message: string;
 };
 
-export type AgentUIMessage = UIMessage<never, { log: AgentLogEntry; auth: AgentAuthPrompt }>;
+export type AgentApprovalPrompt = {
+  token: string;
+  message: string;
+  toolCalls: Array<{
+    tool: string;
+    arguments: Record<string, unknown>;
+  }>;
+};
+
+export type AgentUIMessage = UIMessage<never, { log: AgentLogEntry; auth: AgentAuthPrompt; approve: AgentApprovalPrompt }>;
 
 export function collectLogs(messages: AgentUIMessage[]): AgentLogEntry[] {
   const items: AgentLogEntry[] = [];
