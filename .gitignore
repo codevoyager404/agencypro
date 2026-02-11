@@ -1,0 +1,31 @@
+# macOS
+.DS_Store
+
+# Node
+web/node_modules
+web/.next
+web/.turbo
+web/.vercel
+web/.env.local
+web/.env.production
+web/.env.development
+web/.npm
+
+# Python
+backend/.venv
+backend/__pycache__
+backend/.pytest_cache
+backend/.mypy_cache
+backend/.ruff_cache
+backend/.coverage
+backend/*.pyc
+
+# Env
+*.env
+!.env.example
+
+# Misc
+coverage
+*.log
+tmp
+dist
