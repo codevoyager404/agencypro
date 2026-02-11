@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import operator
+import re
 from typing import Annotated, Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -19,6 +20,51 @@ Execution rules:
 4. For large outputs, use COMPOSIO_REMOTE_WORKBENCH to compute aggregates and return only concise results.
 5. Keep final answers short and include the computed value directly.
 """.strip()
+
+
+def _prettify_toolkit_name(value: str) -> str:
+    cleaned = re.sub(r"[_\-]+", " ", value).strip()
+    if not cleaned:
+        return "Required App"
+    return " ".join(part.capitalize() for part in cleaned.split())
+
+
+def _extract_toolkit_name(arguments: dict[str, Any], result: dict[str, Any]) -> str:
+    candidate_keys = (
+        "toolkit",
+        "toolkit_slug",
+        "toolkitSlug",
+        "app",
+        "app_slug",
+        "appSlug",
+        "integration",
+        "provider",
+    )
+    def find_candidate(payload: Any) -> str | None:
+        if isinstance(payload, dict):
+            for key in candidate_keys:
+                value = payload.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value
+            for value in payload.values():
+                found = find_candidate(value)
+                if found:
+                    return found
+        if isinstance(payload, list):
+            for item in payload:
+                found = find_candidate(item)
+                if found:
+                    return found
+        return None
+
+    payloads: tuple[Any, ...] = (arguments, result)
+
+    for payload in payloads:
+        found = find_candidate(payload)
+        if found:
+            return _prettify_toolkit_name(found)
+
+    return "Required App"
 
 
 class AgentState(TypedDict):
@@ -168,14 +214,15 @@ class AgentGraph:
 
         maybe_auth_url = find_first_http_url(result)
         if call["name"] == "COMPOSIO_MANAGE_CONNECTIONS" and maybe_auth_url:
+            toolkit_name = _extract_toolkit_name(call["arguments"], result)
             events.append(
                 {
                     "type": "data-auth",
                     "data": {
                         "tool": call["name"],
-                        "toolkit": "github",
+                        "toolkit": toolkit_name,
                         "authUrl": maybe_auth_url,
-                        "message": "Connect GitHub to continue execution.",
+                        "message": f"Connect {toolkit_name} to continue execution.",
                     },
                 }
             )
