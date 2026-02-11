@@ -19,6 +19,10 @@ export function ApproveCard({
 
   const details = useMemo(() => JSON.stringify(prompt.toolCalls, null, 2), [prompt.toolCalls]);
   const canApprove = !disabled && typeof onApprove === "function";
+  const handleApproveClick = () => {
+    if (!canApprove || typeof onApprove !== "function") return;
+    onApprove(prompt);
+  };
 
   return (
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -51,7 +55,7 @@ export function ApproveCard({
         <button
           type="button"
           disabled={!canApprove}
-          onClick={() => onApprove?.(prompt)}
+          onClick={handleApproveClick}
           className="inline-flex items-center gap-2 rounded-lg bg-amber-700 px-3 py-2 text-sm font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Check className="h-4 w-4" />
