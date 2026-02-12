@@ -43,142 +43,6 @@ def read_message_text(parts: Iterable[dict[str, Any]]) -> str:
     return "\n".join([x for x in chunks if x]).strip()
 
 
-def _to_json_string(value: Any, *, default: str) -> str:
-    if isinstance(value, str):
-        stripped = value.strip()
-        return stripped if stripped else default
-
-    if value is None:
-        return default
-
-    try:
-        return json.dumps(value, ensure_ascii=False)
-    except TypeError:
-        return json.dumps(str(value), ensure_ascii=False)
-
-
-def _tool_name_from_part(part: dict[str, Any]) -> str | None:
-    part_type = str(part.get("type", ""))
-
-    if part_type == "dynamic-tool":
-        tool_name = part.get("toolName")
-        if isinstance(tool_name, str) and tool_name.strip():
-            return tool_name.strip()
-        return None
-
-    if part_type.startswith("tool-"):
-        tool_name = part_type[5:].strip()
-        return tool_name or None
-
-    return None
-
-
-def _assistant_tool_payload(
-    parts: Iterable[dict[str, Any]],
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    tool_calls: list[dict[str, Any]] = []
-    tool_results: list[dict[str, Any]] = []
-    seen_tool_calls: set[str] = set()
-    seen_tool_results: set[str] = set()
-
-    for part in parts:
-        tool_name = _tool_name_from_part(part)
-        if not tool_name:
-            continue
-
-        tool_call_id = part.get("toolCallId")
-        if not isinstance(tool_call_id, str) or not tool_call_id.strip():
-            continue
-
-        state = str(part.get("state", ""))
-        if state == "input-streaming":
-            continue
-
-        raw_input = part.get("input")
-        if raw_input is None and "rawInput" in part:
-            raw_input = part.get("rawInput")
-
-        arguments = _to_json_string(raw_input, default="{}")
-        if tool_call_id not in seen_tool_calls:
-            tool_calls.append(
-                {
-                    "id": tool_call_id,
-                    "type": "function",
-                    "function": {
-                        "name": tool_name,
-                        "arguments": arguments,
-                    },
-                }
-            )
-            seen_tool_calls.add(tool_call_id)
-
-        if state not in {"output-available", "output-error"}:
-            continue
-
-        output: Any = part.get("output")
-        if state == "output-error":
-            output = part.get("errorText") or output
-
-        content = output if isinstance(output, str) else _to_json_string(output, default="")
-        if tool_call_id not in seen_tool_results:
-            tool_results.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": content,
-                }
-            )
-            seen_tool_results.add(tool_call_id)
-
-    return tool_calls, tool_results
-
-
-def _tool_call_id_from_message(message: IncomingMessage, parts: Iterable[dict[str, Any]]) -> str | None:
-    raw_message = message.model_dump()
-    candidates = [
-        raw_message.get("tool_call_id"),
-        raw_message.get("toolCallId"),
-        raw_message.get("id"),
-    ]
-    for candidate in candidates:
-        if isinstance(candidate, str) and candidate.strip():
-            return candidate.strip()
-
-    for part in parts:
-        maybe_id = part.get("toolCallId")
-        if isinstance(maybe_id, str) and maybe_id.strip():
-            return maybe_id.strip()
-
-    return None
-
-
-def _tool_message_content(message: IncomingMessage, parts: Iterable[dict[str, Any]]) -> str:
-    text = read_message_text(parts)
-    if text:
-        return text
-
-    raw_message = message.model_dump()
-    content = raw_message.get("content")
-    if isinstance(content, str) and content.strip():
-        return content.strip()
-
-    outputs: list[Any] = []
-    for part in parts:
-        if "output" in part:
-            outputs.append(part.get("output"))
-        elif "data" in part:
-            outputs.append(part.get("data"))
-
-    if not outputs:
-        return ""
-
-    if len(outputs) == 1:
-        output = outputs[0]
-        return output if isinstance(output, str) else _to_json_string(output, default="")
-
-    return _to_json_string(outputs, default="")
-
-
 def ui_messages_to_openai(messages: list[IncomingMessage]) -> list[dict[str, Any]]:
     converted: list[dict[str, Any]] = []
 
@@ -186,46 +50,13 @@ def ui_messages_to_openai(messages: list[IncomingMessage]) -> list[dict[str, Any
         payload = [part.model_dump() for part in message.parts]
         text = read_message_text(payload)
 
-        if message.role in {"user", "system"}:
+        if message.role in {"user", "system", "assistant"}:
             if not text:
                 continue
             converted.append(
                 {
                     "role": message.role,
                     "content": text,
-                }
-            )
-
-        if message.role == "assistant":
-            tool_calls, tool_results = _assistant_tool_payload(payload)
-
-            if not text and not tool_calls:
-                continue
-
-            assistant_message: dict[str, Any] = {
-                "role": "assistant",
-                "content": text if text else "",
-            }
-            if tool_calls:
-                assistant_message["tool_calls"] = tool_calls
-
-            converted.append(assistant_message)
-            converted.extend(tool_results)
-
-        if message.role == "tool":
-            tool_call_id = _tool_call_id_from_message(message, payload)
-            if not tool_call_id:
-                continue
-
-            content = _tool_message_content(message, payload)
-            if not content:
-                continue
-
-            converted.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": content,
                 }
             )
 
